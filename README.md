@@ -45,14 +45,20 @@ Each notebook explores a different algorithm and a different strategy for handli
 
 > ⚠️ **Note on accuracy:** Because fraud is only 0.17% of the full dataset, overall accuracy is a misleading metric on unbalanced data — a model that predicts "not fraud" for every transaction would still score ~99.8%. The numbers below for Decision Tree are on the full imbalanced test set; Logistic Regression and KNN are evaluated on a balanced held-out split, so their accuracy figures are directly comparable to precision/recall.
 
-| Model | Test set | Accuracy | Fraud-class Precision | Fraud-class Recall | Fraud-class F1 |
-|---|---|---|---|---|---|
-| Logistic Regression (balanced subset) | 197 rows (98 fraud) | 0.929 | 0.97 | 0.89 | 0.93 |
-| Decision Tree (full imbalanced data, pruned) | 85,443 rows (148 fraud) | 0.999 | 0.87 | 0.72 | 0.79 |
-| K-Nearest Neighbors (balanced subset, k=1 selected) | 296 rows (148 fraud) | 0.91 | 0.94 | 0.87 | 0.91 |
-| SVM (undersampled train fold only) | *re-run notebook* | *re-run notebook* | *re-run notebook* | *re-run notebook* | *re-run notebook* |
+| Model | Test set | Accuracy | Fraud-class Precision | Fraud-class Recall | Fraud-class F1 | ROC-AUC |
+|---|---|---|---|---|---|---|
+| Logistic Regression (balanced subset) | 197 rows (98 fraud) | 0.929 | 0.97 | 0.89 | 0.93 | — |
+| Decision Tree (full imbalanced data, pruned) | 85,443 rows (148 fraud) | 0.999 | 0.87 | 0.72 | 0.79 | — |
+| K-Nearest Neighbors (balanced subset, k=1 selected) | 296 rows (148 fraud) | 0.91 | 0.94 | 0.87 | 0.91 | — |
+| SVM (train fold undersampled, test fold left imbalanced) | ~56,962 rows (real-world imbalance) | 0.989 | 0.13 | 0.91 | 0.23 | 0.982 |
 
-Across the three re-run models, Logistic Regression and KNN — both trained on a balanced subset — catch fraud at a noticeably higher rate (recall 0.87–0.89) than the Decision Tree trained on the full imbalanced data (recall 0.72), which is the expected trade-off: training on realistic class proportions keeps overall accuracy near 100%, but the model sees far fewer fraud examples and misses more of them. SVM numbers aren't filled in yet — its evaluation cells were rebuilt after a fix and haven't been executed against `creditcard.csv`.
+Three different pictures emerge depending on what the model saw at train and test time:
+
+- **Logistic Regression and KNN** are trained and tested on balanced subsets, so precision and recall are both usable metrics and both land around 0.87–0.97 — a well-behaved, if small-sample, result.
+- **Decision Tree** is trained *and* tested on the full imbalanced data. Accuracy stays near 100% (expected — 99.8% of rows are legitimate), but recall drops to 0.72: the tree sees far fewer fraud examples during training and misses more of them.
+- **SVM** is the most realistic test: trained on an undersampled fold but evaluated against the *actual* imbalanced test set. That's why recall is high (0.91 — it catches most fraud) but precision is low (0.13 — undersampling the training data biases the model toward flagging fraud too readily, so it also raises a lot of false alarms on real-world data). The AUC of 0.98 shows the model still ranks fraud vs. non-fraud well; the low precision is a decision-threshold/calibration issue rather than a sign the model learned nothing useful.
+
+This split — some models tested on balanced data, one on the full imbalanced data, one on a realistic hold-out — means the accuracy/precision/recall numbers above aren't directly comparable across rows without accounting for what each test set looks like.
 
 ## 🩹 Known limitations & fixes applied
 
@@ -70,7 +76,7 @@ This project started as a comparative study, not a production system, and the or
 - No `sklearn.Pipeline`/`ColumnTransformer` — preprocessing steps are manual rather than chained into a single leakage-safe object.
 - No saved model artifact or inference script — this remains a set of training/evaluation notebooks, not a servable system.
 - No duplicate-row check (`df.duplicated().sum()`) — this public dataset is known to contain duplicate rows.
-- SVM notebook's evaluation cells haven't been re-executed since being rebuilt — its results row above is still blank.
+- SVM's low precision (0.13) suggests the 0.5 undersampling ratio is too aggressive for a model deployed against real-world class balance — worth revisiting the sampling ratio or adding a decision-threshold adjustment/calibration step rather than using the default 0.5 cutoff.
 
 ## 🛠️ Tech Stack
 
